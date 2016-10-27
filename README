@@ -1,0 +1,47 @@
+-----------------------------------------------------
+-= Installing Voise res_speech module on Asterisk =-
+-----------------------------------------------------
+
+Voise connector for Asterisk Generic Speech Recognition API.
+(http://www.asterisk.org/doxygen/1.4/AstSpeech.html)
+
+In order to install 'res_speech_voise' module, you need to perform the following steps:
+
+1 - Copy 'res_speech_voise.c' file to 'res' folder (ex: /usr/src/asterisk-12.8.2/res) of your asterisk sources.
+
+2 - Edit the 'Makefile' ('res' folder) in order to add (before 'all:' label):
+
+    2a - for Asterisk 1.4, 1.6 o 1.8: 
+
+    MENUSELECT_DEPENDS_res_speech_voise+=VOISE
+    VOISE_LIB=-lvoise
+    
+    2b - for Asterisk 11:
+
+    _ASTCFLAGS+=-DASTERISK_VERSION_NUM=110000
+    MENUSELECT_DEPENDS_res_speech_voise+=VOISE
+    VOISE_LIB=-lvoise
+
+    2c - for Asterisk 12:
+
+    _ASTCFLAGS+=-DASTERISK_VERSION_NUM=120000
+    MENUSELECT_DEPENDS_res_speech_voise+=VOISE
+    VOISE_LIB=-lvoise
+
+    2d - for Asterisk 13:
+
+    _ASTCFLAGS+=-DASTERISK_VERSION_NUM=130000
+    MENUSELECT_DEPENDS_res_speech_voise+=VOISE
+    VOISE_LIB=-lvoise
+
+3 - Run 'make install' (top of your asterisk sources)
+
+4 - Check that you have the following lines in /etc/asterisk/modules.conf:
+
+; Uncomment the following if you wish to use the Speech Recognition API
+preload => res_speech.so
+load => res_speech_voise.so
+
+5 - Copy 'voise.conf' (configuration file) to:
+
+/etc/asterisk
