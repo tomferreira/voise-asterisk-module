@@ -80,8 +80,11 @@ static const int  VOISE_NOISE_FRAMES = 1;
 static const int  VOISE_SILENCE_THRESHOLD = 2500;
 static const int  VOISE_MAX_NBEST = 1;
 
-static const char *VOISE_CFG      = "voise.conf";
+static const char *VOISE_CFG = "voise.conf";
 static const char *VOISE_DEF_HOST = "127.0.0.1";
+static const char *VOISE_DEF_LANG = "pt-BR";
+static const char *VOISE_DEF_INIT_SIL = "-1"; /* No maximum value */
+static const char *VOISE_DEF_MAX_SIL = "-1"; /* No maximum value */
 
 struct voise_speech_info
 {
@@ -484,7 +487,7 @@ static int voise_create(struct ast_speech *speech, int format)
     /* Default lang */
     const char *vlang;
     if ( !(vlang = ast_variable_retrieve(vcfg, "general", "lang")))
-        vlang = "pt-BR";
+        vlang = VOISE_DEF_LANG;
 
     if (vlang != NULL)
         __voise_set_lang(speech, vlang);
@@ -492,7 +495,7 @@ static int voise_create(struct ast_speech *speech, int format)
     /* Default max initial silence */
     const char *vinitsil;
     if ( !(vinitsil = ast_variable_retrieve(vcfg, "general", "initsil")))
-        vinitsil = "-1"; /* No maximum value */
+        vinitsil = VOISE_DEF_INIT_SIL; 
 
     if (vinitsil != NULL)
         __voise_set_initsilence(speech, atoi(vinitsil));
@@ -500,7 +503,7 @@ static int voise_create(struct ast_speech *speech, int format)
     /* Default max final silence */
     const char *vmaxsil;
     if ( !(vmaxsil = ast_variable_retrieve(vcfg, "general", "maxsil")))
-        vmaxsil = "-1"; /* No maximum value */
+        vmaxsil = VOISE_DEF_MAX_SIL;
 
     if (vmaxsil != NULL)
         __voise_set_maxsilence(speech, atoi(vmaxsil));
