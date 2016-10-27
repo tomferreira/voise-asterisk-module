@@ -76,9 +76,8 @@
     }
 
 static const int  VOISE_BUFSIZE = 2048;
-static const int  VOISE_SILENCE_TIME = 200;
 static const int  VOISE_NOISE_FRAMES = 1;
-static const int  VOISE_SILENCE_THRESHOLD = 500;
+static const int  VOISE_SILENCE_THRESHOLD = 2500;
 static const int  VOISE_MAX_NBEST = 1;
 
 static const char *VOISE_CFG      = "voise.conf";
@@ -97,6 +96,12 @@ struct voise_speech_info
 
     /* */
     const char model_name[1000];
+
+    /* Maximum duration of initial silence (in milliseconds) */
+    int initsil;
+
+    /* Maximum duration of final silence (in milliseconds) */
+    int maxsil;
 
     /* True if we have detected speech */
     int heardspeech;
@@ -310,6 +315,88 @@ static const char* __voise_get_model(struct ast_speech *speech)
     }
 }
 
+/*! \brief Helper function. Set maximum initial silence*/
+static int __voise_set_initsilence(struct ast_speech *speech, int initsil)
+{
+    TRACE_FUNCTION();
+
+    CHECK_NOT_NULL(speech, "Speech is NULL", -1);
+
+    struct voise_speech_info *voise_info;
+    voise_info = (struct voise_speech_info *)speech->data;
+
+    if (voise_info != NULL)
+    {
+        voise_info->initsil = initsil;
+        return 0;
+    }
+    else
+    {
+        ast_log(LOG_ERROR, "Could not set maximum silence to %d\n", initsil);
+        return -1;
+    }
+}
+
+/*! \brief Helper function. Get initial silence*/
+static int __voise_get_initsilence(struct ast_speech *speech)
+{
+    TRACE_FUNCTION();
+
+    CHECK_NOT_NULL(speech, "Speech is NULL", NULL);
+
+    struct voise_speech_info *voise_info;
+    voise_info = (struct voise_speech_info *)speech->data;
+
+    if (voise_info != NULL)
+        return voise_info->initsil;
+    else
+    {
+        ast_log(LOG_ERROR, "Could not get initial silence\n");
+        return -1;
+    }
+}
+
+/*! \brief Helper function. Set maximum final silence*/
+static int __voise_set_maxsilence(struct ast_speech *speech, int maxsil)
+{
+    TRACE_FUNCTION();
+
+    CHECK_NOT_NULL(speech, "Speech is NULL", -1);
+
+    struct voise_speech_info *voise_info;
+    voise_info = (struct voise_speech_info *)speech->data;
+
+    if (voise_info != NULL)
+    {
+        voise_info->maxsil = maxsil;
+        return 0;
+    }
+    else
+    {
+        ast_log(LOG_ERROR, "Could not set maximum silence to %d\n", maxsil);
+        return -1;
+    }
+}
+
+/*! \brief Helper function. Get maximum silence*/
+static int __voise_get_maxsilence(struct ast_speech *speech)
+{
+    TRACE_FUNCTION();
+
+    CHECK_NOT_NULL(speech, "Speech is NULL", NULL);
+
+    struct voise_speech_info *voise_info;
+    voise_info = (struct voise_speech_info *)speech->data;
+
+    if (voise_info != NULL)
+        return voise_info->maxsil;
+    else
+    {
+        ast_log(LOG_ERROR, "Could not get maximum silence\n");
+        return -1;
+    }
+}
+
 /*! \brief Helper function. Set ASR result*/
 static void __voise_set_result(struct ast_speech *speech, voise_response_t *voise_response)
 {
@@ -401,6 +488,22 @@ static int voise_create(struct ast_speech *speech, int format)
 
     if (vlang != NULL)
         __voise_set_lang(speech, vlang);
+
+    /* Default max initial silence */
+    const char *vinitsil;
+    if ( !(vinitsil = ast_variable_retrieve(vcfg, "general", "initsil")))
+        vinitsil = "-1"; /* No maximum value */
+
+    if (vinitsil != NULL)
+        __voise_set_initsilence(speech, atoi(vinitsil));
+
+    /* Default max final silence */
+    const char *vmaxsil;
+    if ( !(vmaxsil = ast_variable_retrieve(vcfg, "general", "maxsil")))
+        vmaxsil = "-1"; /* No maximum value */
+
+    if (vmaxsil != NULL)
+        __voise_set_maxsilence(speech, atoi(vmaxsil));
 
     /* Server IP */
     const char *vserverip;
@@ -513,6 +616,11 @@ static int voise_write(struct ast_speech *speech, void *data, int len)
 
     CHECK_NOT_NULL(voise_info, "Voise info is NULL", -1);
 
+    int verbose = __voise_get_verbose(speech);
+
+    int initsil = __voise_get_initsilence(speech);
+    int maxsil = __voise_get_maxsilence(speech);
+
     /* The Voise system doesn't seem be helpful in detecting silence and determing
      * the end of an utterance on its own, so here we use Asterisk's silence detection
      * DSP to fake sane behaviour. 
@@ -536,17 +644,32 @@ static int voise_write(struct ast_speech *speech, void *data, int len)
 
         if (voise_info->noiseframes > VOISE_NOISE_FRAMES)
         {
-            ast_log(LOG_DEBUG, "Detected speech.\n");
+            if (verbose)
+                ast_log(LOG_DEBUG, "Detected speech.\n");
 
             voise_info->heardspeech = 1;
             voise_info->noiseframes = 0;
+
             speech->flags |= AST_SPEECH_QUIET;
             speech->flags |= AST_SPEECH_SPOKE;
         }
-    } 
-    else if (voise_info->heardspeech && silence && totalsil > VOISE_SILENCE_TIME)
+    }
+    else if (!voise_info->heardspeech && silence && initsil >= 0 && initsil <= totalsil)
     {
-        ast_log(LOG_NOTICE, "Detected %d finishing silence.\n", totalsil);
+        if (verbose)
+            ast_log(LOG_NOTICE, "Maximum initial silence detected: %d.\n", totalsil);
+
+        voise_response_t voise_response;
+        voise_stop_streaming_recognize( voise_info->client, &voise_response );
+
+        __voise_set_result( speech, &voise_response );
+
+        return 0;
+    }
+    else if (voise_info->heardspeech && silence && maxsil >= 0 && maxsil <= totalsil)
+    {
+        if (verbose)
+            ast_log(LOG_NOTICE, "Maximum final silence detected: %d.\n", totalsil);
 
         voise_response_t voise_response;
         voise_stop_streaming_recognize( voise_info->client, &voise_response );
@@ -650,6 +773,16 @@ static int voise_change(struct ast_speech *speech, char *name, const char *value
     else if (!strcmp(name, "lang"))
     {
         if (__voise_set_lang(speech, value) < 0)
+            retval = -1;
+    }
+    else if (!strcmp(name, "initsil"))
+    {
+        if (__voise_set_initsilence(speech, atoi(value)) < 0)
+            retval = -1;
+    }
+    else if (!strcmp(name, "maxsil"))
+    {
+        if (__voise_set_maxsilence(speech, atoi(value)) < 0)
             retval = -1;
     }
     else
