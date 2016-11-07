@@ -324,6 +324,8 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
 
     if (response.result_code != 201)
     {
+        ast_log(LOG_ERROR, "VoiseSay: %s\n", response.result_message);
+
         #if ASTERISK_VERSION_NUM < AST_4
         LOCAL_USER_REMOVE(u);
         #else   

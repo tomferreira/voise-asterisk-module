@@ -817,7 +817,7 @@ static int voise_write(struct ast_speech *speech, void *data, int len)
 
     if (ret < 0)
     {
-        ast_log(LOG_ERROR, "Voise streaming data error: %d\n", ret);
+        ast_log(LOG_ERROR, "Streaming data error: %d\n", ret);
         ast_speech_change_state(speech, AST_SPEECH_STATE_NOT_READY);
 
         return -1;
@@ -854,19 +854,25 @@ static int voise_start(struct ast_speech *speech)
     const char *asr_engine = __voise_get_asr_engine(speech);
     const char *model_name = __voise_get_model(speech);
 
+    if (verbose)
+    {
+        ast_log(LOG_VERBOSE, "Start recognize:\n  Lang: %s\n  Model name: %s\n  ASR engine: %s\n", 
+            lang, model_name, asr_engine);
+    }
+
     voise_response_t response;
     int ret = voise_start_streaming_recognize(
         voise_info->client, &response, "LINEAR16", 8000, lang, NULL, model_name, asr_engine);
 
     if (ret < 0)
     {
-        ast_log(LOG_ERROR, "Voise streaming start error: %d\n", ret);
+        ast_log(LOG_ERROR, "Streaming start error: %d\n", ret);
         return -1;
     }
 
     if (response.result_code != 201)
     {
-        ast_log(LOG_ERROR, "Voise streaming not started: %d\n", response.result_code);
+        ast_log(LOG_ERROR, "Streaming not started: %s\n", response.result_message);
         return -1;
     }
 
@@ -876,7 +882,7 @@ static int voise_start(struct ast_speech *speech)
     ast_speech_change_state(speech, AST_SPEECH_STATE_READY);
 
     if (verbose)
-        ast_log(LOG_DEBUG, "Voise streaming started.\n");
+        ast_log(LOG_DEBUG, "Streaming started.\n");
 
     return 0;
 }
