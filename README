@@ -8,6 +8,7 @@ Voise connector for Asterisk Generic Speech Recognition API.
 In order to install 'res_speech_voise' module, you need to perform the following steps:
 
 1 - Copy 'res_speech_voise.c' file to 'res' folder (ex: /usr/src/asterisk-12.8.2/res) of your asterisk sources.
+    and copy 'app_verbio_speech.c' file to 'apps' folder of your asterisk sources.
 
 2 - Edit the 'Makefile' ('res' folder) in order to add (before 'all:' label):
 
@@ -34,14 +35,56 @@ In order to install 'res_speech_voise' module, you need to perform the following
     MENUSELECT_DEPENDS_res_speech_voise+=VOISE
     VOISE_LIB=-lvoise
 
-3 - Run 'make install' (top of your asterisk sources)
+3 - Edit the 'Makefile' ('apps' folder) in order to add:
 
-4 - Check that you have the following lines in /etc/asterisk/modules.conf:
+    3a - If you are on Asterisk 1.2
+
+    APPS+=app_voise_speech.so
+    
+    and
+    
+    app_voise_speech.so : app_voise_speech.o
+        $(CC) $(SOLINK) -o $@ ${CYGSOLINK} $< ${CYGSOLIB} -lvoise
+
+    --------------
+
+    3b - If you are on Asterisk 1.4, 1.6 or 1.8, add before 'all:' label:
+    
+    MENUSELECT_DEPENDS_app_voise_speech+=VOISE
+    VOISE_LIB=-lvoise
+
+    --------------
+
+    3c - If you are on Asterisk 11, add before 'all:' label:
+
+    _ASTCFLAGS+=-DASTERISK_VERSION_NUM=110000
+    MENUSELECT_DEPENDS_app_voise_speech+=VOISE
+    VOISE_LIB=-lvoise
+
+    ---------------
+
+    3d - If you are on Asterisk 12, add before 'all:' label:
+
+    _ASTCFLAGS+=-DASTERISK_VERSION_NUM=120000
+    MENUSELECT_DEPENDS_app_voise_speech+=VOISE
+    VOISE_LIB=-lvoise
+
+    ---------------
+
+    3e - If you are on Asterisk 13, add before 'all:' label:
+
+    _ASTCFLAGS+=-DASTERISK_VERSION_NUM=130000
+    MENUSELECT_DEPENDS_app_voise_speech+=VOISE
+    VOISE_LIB=-lvoise
+
+4 - Run 'make install' (top of your asterisk sources)
+
+5 - Check that you have the following lines in /etc/asterisk/modules.conf:
 
 ; Uncomment the following if you wish to use the Speech Recognition API
 preload => res_speech.so
 load => res_speech_voise.so
 
-5 - Copy 'voise.conf' (configuration file) to:
+6 - Copy 'voise.conf' (configuration file) to:
 
 /etc/asterisk
