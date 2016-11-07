@@ -83,6 +83,7 @@ static const int  VOISE_MAX_NBEST = 1;
 static const char *VOISE_CFG = "voise.conf";
 static const char *VOISE_DEF_HOST = "127.0.0.1";
 static const char *VOISE_DEF_LANG = "pt-BR";
+static const char *VOISE_DEF_ASR_ENGINE = "me";
 static const char *VOISE_DEF_INIT_SIL = "5000";
 static const char *VOISE_DEF_MAX_SIL = "1000";
 static const char *VOISE_DEF_ABS_TIMEOUT = "15";
@@ -98,6 +99,9 @@ struct voise_speech_info
 
     /* */
     char lang[10];
+
+    /* ASR engine used */
+    char asr_engine[10];
 
     /* */
     char model_name[1000];
@@ -280,6 +284,47 @@ static const char* __voise_get_lang(struct ast_speech *speech)
     else
     {
         ast_log(LOG_ERROR, "Could not get language\n");
+        return NULL;
+    }
+}
+
+/*! \brief Helper function. Set ASR engine*/
+static int __voise_set_asr_engine(struct ast_speech *speech, const char *asr_engine)
+{
+    TRACE_FUNCTION();
+
+    CHECK_NOT_NULL(speech, "Speech is NULL", -1);
+
+    struct voise_speech_info *voise_info;
+    voise_info = (struct voise_speech_info *)speech->data;
+
+    if (voise_info != NULL)
+    {
+        strncpy(voise_info->asr_engine, asr_engine, strlen(asr_engine));
+        return 0;
+    }
+    else
+    {
+        ast_log(LOG_ERROR, "Could not set ASR engine to %s\n", asr_engine);
+        return -1;
+    }
+}
+
+/*! \brief Helper function. Get ASR engine*/
+static const char* __voise_get_asr_engine(struct ast_speech *speech)
+{
+    TRACE_FUNCTION();
+
+    CHECK_NOT_NULL(speech, "Speech is NULL", NULL);
+
+    struct voise_speech_info *voise_info;
+    voise_info = (struct voise_speech_info *)speech->data;
+
+    if (voise_info != NULL)
+        return voise_info->asr_engine;
+    else
+    {
+        ast_log(LOG_ERROR, "Could not get ASR engine\n");
         return NULL;
     }
 }
@@ -477,7 +522,7 @@ static void __voise_set_result(struct ast_speech *speech, voise_response_t *vois
     int ibest;
     for (ibest = 0; ibest < VOISE_MAX_NBEST; ++ibest)
     {
-        result->score = (int)(voise_response->probability * 100);
+        result->score = (int)(voise_response->confidence * voise_response->probability * 100);
         result->text = ast_strndup(voise_response->utterance, strlen(voise_response->utterance));
         result->grammar = ast_strndup(voise_response->intent, strlen(voise_response->intent));
 
@@ -539,6 +584,14 @@ static int voise_create(struct ast_speech *speech, int format)
 
     if (vlang != NULL)
         __voise_set_lang(speech, vlang);
+
+    /* Default ASR engine */
+    const char *vasrengine;
+    if ( !(vasrengine = ast_variable_retrieve(vcfg, "general", "asr_engine")))
+        vasrengine = VOISE_DEF_ASR_ENGINE;
+
+    if (vasrengine != NULL)
+        __voise_set_asr_engine(speech, vasrengine);    
 
     /* Default max initial silence */
     const char *vinitsil;
@@ -798,11 +851,12 @@ static int voise_start(struct ast_speech *speech)
     CHECK_NOT_NULL(voise_info, "Voise info is NULL", -1);
 
     const char *lang = __voise_get_lang(speech);
+    const char *asr_engine = __voise_get_asr_engine(speech);
     const char *model_name = __voise_get_model(speech);
 
     voise_response_t response;
     int ret = voise_start_streaming_recognize(
-        voise_info->client, &response, "LINEAR16", 8000, lang, NULL, model_name );
+        voise_info->client, &response, "LINEAR16", 8000, lang, NULL, model_name, asr_engine);
 
     if (ret < 0)
     {
@@ -852,6 +906,11 @@ static int voise_change(struct ast_speech *speech, char *name, const char *value
     else if (!strcmp(name, "lang"))
     {
         if (__voise_set_lang(speech, value) < 0)
+            retval = -1;
+    }
+    else if (!strcmp(name, "asr_engine"))
+    {
+        if (__voise_set_asr_engine(speech, value) < 0)
             retval = -1;
     }
     else if (!strcmp(name, "initsil"))
