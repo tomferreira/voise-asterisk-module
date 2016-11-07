@@ -77,14 +77,16 @@
 
 static const int  VOISE_BUFSIZE = 2048;
 static const int  VOISE_NOISE_FRAMES = 1;
-static const int  VOISE_SILENCE_THRESHOLD = 2500;
+static const int  VOISE_SILENCE_THRESHOLD = 2000;
 static const int  VOISE_MAX_NBEST = 1;
 
 static const char *VOISE_CFG = "voise.conf";
 static const char *VOISE_DEF_HOST = "127.0.0.1";
 static const char *VOISE_DEF_LANG = "pt-BR";
-static const char *VOISE_DEF_INIT_SIL = "-1"; /* No maximum value */
-static const char *VOISE_DEF_MAX_SIL = "-1"; /* No maximum value */
+static const char *VOISE_DEF_INIT_SIL = "5000";
+static const char *VOISE_DEF_MAX_SIL = "1000";
+static const char *VOISE_DEF_ABS_TIMEOUT = "15";
+static const char *VOISE_DEF_VERBOSE = "0"; /* disabled */
 
 struct voise_speech_info
 {
@@ -95,10 +97,10 @@ struct voise_speech_info
     int verbose;
 
     /* */
-    const char lang[10];
+    char lang[10];
 
     /* */
-    const char model_name[1000];
+    char model_name[1000];
 
     /* Maximum duration of initial silence (in milliseconds) */
     int initsil;
@@ -106,11 +108,16 @@ struct voise_speech_info
     /* Maximum duration of final silence (in milliseconds) */
     int maxsil;
 
+    /* Absolute timeout for recognition (in seconds) */
+    int abs_timeout;
+
     /* True if we have detected speech */
     int heardspeech;
 
     /* Number of consecutive non-silent frames */
     int noiseframes;
+
+    time_t start_time;
 
     /* Holds our silence-detection DSP */
     struct ast_dsp *dsp;
@@ -345,7 +352,7 @@ static int __voise_get_initsilence(struct ast_speech *speech)
 {
     TRACE_FUNCTION();
 
-    CHECK_NOT_NULL(speech, "Speech is NULL", NULL);
+    CHECK_NOT_NULL(speech, "Speech is NULL", -1);
 
     struct voise_speech_info *voise_info;
     voise_info = (struct voise_speech_info *)speech->data;
@@ -386,7 +393,7 @@ static int __voise_get_maxsilence(struct ast_speech *speech)
 {
     TRACE_FUNCTION();
 
-    CHECK_NOT_NULL(speech, "Speech is NULL", NULL);
+    CHECK_NOT_NULL(speech, "Speech is NULL", -1);
 
     struct voise_speech_info *voise_info;
     voise_info = (struct voise_speech_info *)speech->data;
@@ -396,6 +403,47 @@ static int __voise_get_maxsilence(struct ast_speech *speech)
     else
     {
         ast_log(LOG_ERROR, "Could not get maximum silence\n");
+        return -1;
+    }
+}
+
+/*! \brief Helper function. Set abs timeout*/
+static int __voise_set_abstimeout(struct ast_speech *speech, int abs_timeout)
+{
+    TRACE_FUNCTION();
+
+    CHECK_NOT_NULL(speech, "Speech is NULL", -1);
+
+    struct voise_speech_info *voise_info;
+    voise_info = (struct voise_speech_info *)speech->data;
+
+    if (voise_info != NULL)
+    {
+        voise_info->abs_timeout = abs_timeout;
+        return 0;
+    }
+    else
+    {
+        ast_log(LOG_ERROR, "Could not set abs timeout to %d\n", abs_timeout);
+        return -1;
+    }
+}
+
+/*! \brief Helper function. Get abs timeout*/
+static int __voise_get_abstimeout(struct ast_speech *speech)
+{
+    TRACE_FUNCTION();
+
+    CHECK_NOT_NULL(speech, "Speech is NULL", -1);
+
+    struct voise_speech_info *voise_info;
+    voise_info = (struct voise_speech_info *)speech->data;
+
+    if (voise_info != NULL)
+        return voise_info->abs_timeout;
+    else
+    {
+        ast_log(LOG_ERROR, "Could not get abs timeout\n");
         return -1;
     }
 }
@@ -479,7 +527,7 @@ static int voise_create(struct ast_speech *speech, int format)
     /* Verbosity */
     const char *vverbose;
     if ( !(vverbose = ast_variable_retrieve(vcfg, "debug", "verbose")))
-        vverbose = "0";
+        vverbose = VOISE_DEF_VERBOSE;
 
     if (vverbose != NULL)
         __voise_set_verbose(speech, atoi(vverbose));
@@ -508,6 +556,14 @@ static int voise_create(struct ast_speech *speech, int format)
     if (vmaxsil != NULL)
         __voise_set_maxsilence(speech, atoi(vmaxsil));
 
+    /* Default abs timestou */
+    const char *vabstimeout;
+    if ( !(vabstimeout = ast_variable_retrieve(vcfg, "general", "abs_timeout")))
+        vabstimeout = VOISE_DEF_ABS_TIMEOUT;
+
+    if (vabstimeout != NULL)
+        __voise_set_abstimeout(speech, atoi(vabstimeout));
+
     /* Server IP */
     const char *vserverip;
     if ( !(vserverip = ast_variable_retrieve(vcfg, "general", "serverip")) )
@@ -518,7 +574,7 @@ static int voise_create(struct ast_speech *speech, int format)
 
     CHECK_NOT_NULL(voise_info, "Voise info is NULL", -1);
 
-    voise_info->client = voise_init( vserverip, 8100, 1 );
+    voise_info->client = voise_init(vserverip, 8100, 1);
 
     if (voise_info->client == NULL)
     {
@@ -623,6 +679,7 @@ static int voise_write(struct ast_speech *speech, void *data, int len)
 
     int initsil = __voise_get_initsilence(speech);
     int maxsil = __voise_get_maxsilence(speech);
+    int abs_timeout = __voise_get_abstimeout(speech);
 
     /* The Voise system doesn't seem be helpful in detecting silence and determing
      * the end of an utterance on its own, so here we use Asterisk's silence detection
@@ -641,6 +698,9 @@ static int voise_write(struct ast_speech *speech, void *data, int len)
     int totalsil;
     int silence = ast_dsp_silence(voise_info->dsp, &f, &totalsil);
 
+    time_t current_time;
+    time(&current_time);
+
     if (!voise_info->heardspeech && !silence)
     {
         voise_info->noiseframes++;
@@ -653,7 +713,9 @@ static int voise_write(struct ast_speech *speech, void *data, int len)
             voise_info->heardspeech = 1;
             voise_info->noiseframes = 0;
 
+            /* Stop sound file stream */
             speech->flags |= AST_SPEECH_QUIET;
+
             speech->flags |= AST_SPEECH_SPOKE;
         }
     }
@@ -673,6 +735,18 @@ static int voise_write(struct ast_speech *speech, void *data, int len)
     {
         if (verbose)
             ast_log(LOG_NOTICE, "Maximum final silence detected: %d.\n", totalsil);
+
+        voise_response_t voise_response;
+        voise_stop_streaming_recognize( voise_info->client, &voise_response );
+
+        __voise_set_result( speech, &voise_response );
+
+        return 0;
+    }
+    else if (abs_timeout > 0 && abs_timeout <= (current_time - voise_info->start_time))
+    {
+        if (verbose)
+            ast_log(LOG_NOTICE, "Absolute timeout reached [%d seconds].\n", (int)(current_time - voise_info->start_time));
 
         voise_response_t voise_response;
         voise_stop_streaming_recognize( voise_info->client, &voise_response );
@@ -742,6 +816,8 @@ static int voise_start(struct ast_speech *speech)
         return -1;
     }
 
+    time(&voise_info->start_time);
+
     /* Voise engine is ready to accept samples */
     ast_speech_change_state(speech, AST_SPEECH_STATE_READY);
 
@@ -786,6 +862,11 @@ static int voise_change(struct ast_speech *speech, char *name, const char *value
     else if (!strcmp(name, "maxsil"))
     {
         if (__voise_set_maxsilence(speech, atoi(value)) < 0)
+            retval = -1;
+    }
+    else if (!strcmp(name, "abs_timeout"))
+    {
+        if (__voise_set_abstimeout(speech, atoi(value)) < 0)
             retval = -1;
     }
     else
