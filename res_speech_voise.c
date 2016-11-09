@@ -97,13 +97,13 @@ struct voise_speech_info
     /* Verbosity */
     int verbose;
 
-    /* */
+    /* Language code used */
     char lang[10];
 
     /* ASR engine used */
     char asr_engine[10];
 
-    /* */
+    /* Model (i.e. pseudo grammar) used */
     char model_name[1000];
 
     /* Maximum duration of initial silence (in milliseconds) */
@@ -121,7 +121,7 @@ struct voise_speech_info
     /* Number of consecutive non-silent frames */
     int noiseframes;
 
-    /* */
+    /* Start time of recognition's stream */
     time_t start_time;
 
     /* Holds our silence-detection DSP */
