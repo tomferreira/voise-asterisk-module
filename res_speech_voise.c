@@ -121,6 +121,7 @@ struct voise_speech_info
     /* Number of consecutive non-silent frames */
     int noiseframes;
 
+    /* */
     time_t start_time;
 
     /* Holds our silence-detection DSP */
@@ -164,21 +165,15 @@ static int __init_voise_res_speech(void)
     return 1;
 }
 
-static int __reinit_speech_data(struct ast_speech *speech)
+static int __reinit_speech_controls(struct voise_speech_info *voise_info)
 {
     TRACE_FUNCTION();
 
-    CHECK_NOT_NULL(speech, "Speech is NULL", -1);
+    CHECK_NOT_NULL(voise_info, "Voise info is NULL", -1);
 
-    if (speech->data == NULL)
-    {
-        speech->data = ast_calloc(1, sizeof(struct voise_speech_info));
-
-        CHECK_NOT_NULL(speech->data, "Speech data is NULL", -1);
-    }
-
-    struct voise_speech_info *voise_info;
-    voise_info = (struct voise_speech_info *) speech->data;
+    voise_info->heardspeech = 0;
+    voise_info->noiseframes = 0;
+    voise_info->start_time = 0;
 
     if (voise_info->dsp != NULL)
     {
@@ -186,16 +181,11 @@ static int __reinit_speech_data(struct ast_speech *speech)
         voise_info->dsp = NULL;
     }
 
-    voise_info->heardspeech = 0;
-    voise_info->noiseframes = 0;
     voise_info->dsp = ast_dsp_new();
 
     if (voise_info->dsp == NULL)
     {
         ast_log(LOG_ERROR, "Unable to create silence detection DSP\n");
-        ast_free(voise_info);
-        speech->data = NULL;
-
         return -1;
     }
 
@@ -260,6 +250,7 @@ static int __voise_set_lang(struct ast_speech *speech, const char *lang)
     if (voise_info != NULL)
     {
         strncpy(voise_info->lang, lang, strlen(lang));
+        voise_info->lang[strlen(lang)] = '\0';
         return 0;
     }
     else
@@ -301,6 +292,7 @@ static int __voise_set_asr_engine(struct ast_speech *speech, const char *asr_eng
     if (voise_info != NULL)
     {
         strncpy(voise_info->asr_engine, asr_engine, strlen(asr_engine));
+        voise_info->asr_engine[strlen(asr_engine)] = '\0';
         return 0;
     }
     else
@@ -342,6 +334,7 @@ static int __voise_set_model(struct ast_speech *speech, const char *model_name)
     if (voise_info != NULL)
     {
         strncpy(voise_info->model_name, model_name, strlen(model_name));
+        voise_info->model_name[strlen(model_name)] = '\0';
         return 0;
     }
     else
@@ -558,8 +551,12 @@ static int voise_create(struct ast_speech *speech, int format)
 
     CHECK_NOT_NULL(speech, "Speech is NULL", -1);
 
-    if (__reinit_speech_data(speech) < 0)
-        return -1;
+    if (speech->data == NULL)
+    {
+        speech->data = ast_calloc(1, sizeof(struct voise_speech_info));
+
+        CHECK_NOT_NULL(speech->data, "Voise info is NULL", -1);
+    }
 
     struct ast_config *vcfg = voise_load_asterisk_config();
 
@@ -847,6 +844,9 @@ static int voise_start(struct ast_speech *speech)
 
     struct voise_speech_info *voise_info;
     voise_info = (struct voise_speech_info *) speech->data;
+
+    if (__reinit_speech_controls(voise_info) < 0)
+        return -1;
 
     CHECK_NOT_NULL(voise_info, "Voise info is NULL", -1);
 
