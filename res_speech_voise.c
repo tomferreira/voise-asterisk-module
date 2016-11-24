@@ -774,10 +774,18 @@ static int voise_write(struct ast_speech *speech, void *data, int len)
         if (verbose)
             ast_log(LOG_NOTICE, "Maximum initial silence detected: %d.\n", totalsil);
 
-        voise_response_t voise_response;
-        voise_stop_streaming_recognize( voise_info->client, &voise_response );
+        voise_response_t response;
+        int ret = voise_stop_streaming_recognize( voise_info->client, &response );
 
-        __voise_set_result( speech, &voise_response );
+        if (ret < 0)
+        {
+            ast_log(LOG_ERROR, "Streaming stop error: %d\n", ret);
+            ast_speech_change_state(speech, AST_SPEECH_STATE_NOT_READY);
+            
+            return -1;
+        }
+
+        __voise_set_result( speech, &response );
 
         return 0;
     }
@@ -786,10 +794,18 @@ static int voise_write(struct ast_speech *speech, void *data, int len)
         if (verbose)
             ast_log(LOG_NOTICE, "Maximum final silence detected: %d.\n", totalsil);
 
-        voise_response_t voise_response;
-        voise_stop_streaming_recognize( voise_info->client, &voise_response );
+        voise_response_t response;
+        int ret = voise_stop_streaming_recognize( voise_info->client, &response );
 
-        __voise_set_result( speech, &voise_response );
+        if (ret < 0)
+        {
+            ast_log(LOG_ERROR, "Streaming stop error: %d\n", ret);
+            ast_speech_change_state(speech, AST_SPEECH_STATE_NOT_READY);
+            
+            return -1;
+        }
+
+        __voise_set_result( speech, &response );
 
         return 0;
     }
@@ -798,10 +814,18 @@ static int voise_write(struct ast_speech *speech, void *data, int len)
         if (verbose)
             ast_log(LOG_NOTICE, "Absolute timeout reached [%d seconds].\n", (int)(current_time - voise_info->start_time));
 
-        voise_response_t voise_response;
-        voise_stop_streaming_recognize( voise_info->client, &voise_response );
+        voise_response_t response;
+        int ret = voise_stop_streaming_recognize( voise_info->client, &response );
 
-        __voise_set_result( speech, &voise_response );
+        if (ret < 0)
+        {
+            ast_log(LOG_ERROR, "Streaming stop error: %d\n", ret);
+            ast_speech_change_state(speech, AST_SPEECH_STATE_NOT_READY);
+
+            return -1;
+        }
+
+        __voise_set_result( speech, &response );
 
         return 0;
     }
