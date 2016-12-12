@@ -41,6 +41,8 @@
 
 #include <voise_client.h>
 
+//#define TRACE_ENABLED
+
 #define AST_4   10400
 #define AST_6   10600
 #define AST_601 10601
@@ -66,8 +68,12 @@
     #include "asterisk/version.h"
 #endif
 
+#ifdef TRACE_ENABLED
 #define TRACE_FUNCTION() \
     ast_log(LOG_DEBUG, "%s\n", __FUNCTION__)
+#else
+    #define TRACE_FUNCTION()
+#endif
 
 #define CHECK_NOT_NULL(s, msg, ret) \
     if (s == NULL) { \
@@ -838,6 +844,10 @@ static int voise_write(struct ast_speech *speech, void *data, int len)
     {
         voise_info->noiseframes = 0;
     }
+
+#ifdef TRACE_ENABLED
+        ast_log(LOG_DEBUG, ">>>> heardspeech: %d | silence: %d | totalsil: %d | noiseframes: %d | <<<<\n", voise_info->heardspeech, silence, totalsil, voise_info->noiseframes);
+#endif
 
     int ret = voise_data_streaming_recognize( voise_info->client, data, len );
 

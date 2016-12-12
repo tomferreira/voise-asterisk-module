@@ -37,6 +37,8 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1 $")
 
 #include <voise_client.h>
 
+//#define TRACE_ENABLED
+
 #define AST_4   10400
 #define AST_6   10600
 #define AST_601 10601
@@ -45,8 +47,12 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1 $")
 #define AST_11  110000
 #define AST_13  130000
 
+#ifdef TRACE_ENABLED
 #define TRACE_FUNCTION() \
     ast_log(LOG_DEBUG, "%s\n", __FUNCTION__)
+#else
+    #define TRACE_FUNCTION()
+#endif
 
 #if ASTERISK_VERSION_NUM < AST_8
     typedef void* DATA_TYPE;
