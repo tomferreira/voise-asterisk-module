@@ -45,14 +45,6 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1 $")
 #define AST_11  110000
 #define AST_13  130000
 
-#if ASTERISK_VERSION_NUM < AST_6 
-    #define args_sep '|'
-    #define str_sep "|"
-#else
-    #define args_sep ','
-    #define str_sep ","
-#endif
-
 #define TRACE_FUNCTION() \
     ast_log(LOG_DEBUG, "%s\n", __FUNCTION__)
 
@@ -83,7 +75,7 @@ static const int  MAX_WAIT_TIME = 1000; /*ms*/
 */
 /* VoiseSay */
 static char *voise_say_descrip =
-"VoiseSay(text[|lang][|options])\n"
+"VoiseSay(text[,lang][,options])\n"
 "Synthetise a text using Voise TTS engine.\n"
 "- text        : text to synth\n"
 "- lang        : tts language\n"
@@ -152,6 +144,7 @@ static const char* voise_get_chan_language(struct ast_channel *chan)
     #endif
 }
 
+#if ASTERISK_VERSION_NUM == AST_13
 static int voise_get_bytes_per_sample(struct ast_format *format)
 {
     if (format == ast_format_ulaw || format == ast_format_alaw)
@@ -160,6 +153,16 @@ static int voise_get_bytes_per_sample(struct ast_format *format)
     /* linear */
     return 2;
 }
+#else
+static int voise_get_bytes_per_sample(int formatid)
+{
+    if (formatid == AST_FORMAT_ULAW || formatid == AST_FORMAT_ALAW)
+        return 1;
+
+    /* linear */
+    return 2;
+}
+#endif
 
 /*! \brief Text to speech application. */
 static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
@@ -172,62 +175,45 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
     struct ast_module_user *u;
     #endif
 
-    int argc;
-    char *argv[2];
-    char *args;
-
-    char *text = NULL;
-    char *options;
-
-    char *option_tts_lang = NULL;
+    char *parse;
+    
     int option_verbose = 0;
     int option_beep = 0;
     int option_no_hangup_on_err = 0;
 
+    AST_DECLARE_APP_ARGS(args,
+        AST_APP_ARG(text);
+        AST_APP_ARG(lang);
+        AST_APP_ARG(options);
+    );
+
     if (ast_strlen_zero(data)) 
     {
-        ast_log(LOG_ERROR, "%s requires an argument (text|[lang]|[options])\n", voise_say_app);
+        ast_log(LOG_ERROR, "%s requires an argument (text[,lang][,options])\n", voise_say_app);
         return -1;
     }
 
     /* We need to make a copy of the input string if we are going to modify it! */
-    args = ast_strdupa(data);
+    parse = ast_strdupa(data);
+    AST_STANDARD_APP_ARGS(args, parse);
 
-    if (!args) 
+    if (ast_strlen_zero(args.text))
+    {
+        ast_log(LOG_WARNING, "%s() requires a text argument (text[,lang][,options])\n", voise_say_app);
         return -1;
-    
-    if ((argc = ast_app_separate_args(args, args_sep, argv, sizeof(argv) / sizeof(argv[0])))) 
-    {
-        text = argv[0];
-        options = argv[1];
     }
 
-    /* Get options from user */
-
-    /* TTS lang */
-    option_tts_lang = strsep(&options, str_sep);
-
-    if (option_tts_lang)
+    if (!ast_strlen_zero(args.options))
     {
-        if (!strcmp(option_tts_lang, ""))
-            option_tts_lang = NULL;
-    }
-
-    /* Misc options */
-    char *misc = strsep(&options, str_sep);   
-
-    if (misc) 
-    {
-        if (strchr(misc, 'v'))
+        if (strchr(args.options, 'v'))
             option_verbose = 1;
-        if (strchr(misc, 'b'))
+        if (strchr(args.options, 'b'))
             option_beep = 1;
-        if (strchr(misc, 'n'))
+        if (strchr(args.options, 'n'))
             option_no_hangup_on_err = 1;
     }
 
-    /* Get default options */
-
+    /* Load default options */
     struct ast_config *vcfg = voise_load_asterisk_config();
 
     if (!vcfg)
@@ -236,7 +222,14 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
         return -1;
     }
 
-    /* Verbosity */
+    /* If language is not defined, get default lang */
+    if (ast_strlen_zero(args.lang))
+    {
+        if ( !(args.lang = (char*) ast_variable_retrieve(vcfg, "general", "lang")))
+            args.lang = (char*) VOISE_DEF_LANG;
+    }
+
+    /* If verbosity is not defined, get default verbosity */
     if (!option_verbose)
     {
         const char *vverbose;
@@ -244,13 +237,6 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
             vverbose = VOISE_DEF_VERBOSE;
 
         option_verbose = atoi(vverbose);
-    }
-
-    /* Default lang */
-    if (!option_tts_lang)
-    {
-        if ( !(option_tts_lang = ast_variable_retrieve(vcfg, "general", "lang")))
-            option_tts_lang = VOISE_DEF_LANG;
     }
 
     /* Server IP */
@@ -320,7 +306,7 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
     ast_stopstream(chan);
 
     voise_response_t response;
-    voise_start_synth(client, &response, text, VOISE_ENCODING, 8000, option_tts_lang);
+    voise_start_synth(client, &response, args.text, VOISE_ENCODING, 8000, args.lang);
 
     if (response.result_code != 201)
     {

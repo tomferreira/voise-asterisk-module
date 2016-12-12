@@ -743,7 +743,12 @@ static int voise_write(struct ast_speech *speech, void *data, int len)
     f.samples = len / 2;
     f.mallocd = 0;
     f.frametype = AST_FRAME_VOICE;
+#if ASTERISK_VERSION_NUM == AST_13
     f.subclass.format = ast_format_slin;
+#else
+    ast_format_set(&f.subclass.format, AST_FORMAT_SLINEAR, 0);
+#endif
+    
 
     int totalsil;
     int silence = ast_dsp_silence(voise_info->dsp, &f, &totalsil);
@@ -1026,7 +1031,7 @@ static int load_module(void)
         struct ast_format format;
         ast_format_set(&format, AST_FORMAT_SLINEAR, 0);
 
-        if (!(voise_engine.formats = ast_format_cap_alloc()))
+        if (!(voise_engine.formats = ast_format_cap_alloc(0)))
         {
             ast_log(LOG_ERROR, "Failed to alloc media format capabilities\n");
             return AST_MODULE_LOAD_FAILURE;
