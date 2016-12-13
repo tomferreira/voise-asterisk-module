@@ -630,7 +630,7 @@ static int voise_create(struct ast_speech *speech, int format)
 
     CHECK_NOT_NULL(voise_info, "Voise info is NULL", -1);
 
-    voise_info->client = voise_init(vserverip, 8100, 1);
+    voise_info->client = voise_init(vserverip, 8102, 1);
 
     if (voise_info->client == NULL)
     {

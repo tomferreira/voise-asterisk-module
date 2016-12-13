@@ -287,7 +287,7 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
         return -1;
     }
 
-    voise_client_t *client = voise_init(vserverip, 8100, 1);
+    voise_client_t *client = voise_init(vserverip, 8102, 1);
 
     if (client == NULL)
     {
