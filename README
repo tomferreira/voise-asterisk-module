@@ -8,7 +8,7 @@ Voise connector for Asterisk Generic Speech Recognition API.
 In order to install 'res_speech_voise' module, you need to perform the following steps:
 
 1 - Copy 'res_speech_voise.c' file to 'res' folder (ex: /usr/src/asterisk-12.8.2/res) of your asterisk sources.
-    and copy 'app_verbio_speech.c' file to 'apps' folder of your asterisk sources.
+    and copy 'app_voise_speech.c' file to 'apps' folder of your asterisk sources.
 
 2 - Edit the 'Makefile' ('res' folder) in order to add (before 'all:' label):
 
