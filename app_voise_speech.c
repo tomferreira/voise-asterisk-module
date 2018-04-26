@@ -287,9 +287,10 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
         return -1;
     }
 
-    voise_client_t *client = voise_init(vserverip, 8102, 1);
+    voise_client_t client;
+    int ret = voise_init(&client, vserverip, 8102, 1, NULL);
 
-    if (client == NULL)
+    if (ret < 0)
     {
         ast_log(LOG_ERROR, "Could not connect to Voise server (%s).\n", vserverip);
 
@@ -314,7 +315,7 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
     voise_response_t response;
 
     /* TODO: Treat method return (1 = success and -1 = fail) */
-    voise_start_synth(client, &response, args.text, VOISE_ENCODING, 8000, args.lang);
+    voise_start_synth(&client, &response, args.text, VOISE_ENCODING, 8000, args.lang);
 
     if (response.result_code != 201)
     {
@@ -326,7 +327,7 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
         ast_module_user_remove(u);
         #endif
 
-        voise_close(client);
+        voise_close(&client);
 
         ast_config_destroy(vcfg);
 
@@ -364,7 +365,7 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
         {
             ast_log(LOG_ERROR, "Wait failed.\n");
 
-            voise_close(client);
+            voise_close(&client);
 
             ast_stopstream(chan);
 
@@ -387,7 +388,7 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
         {
             ast_log(LOG_DEBUG, "Hangup detected.\n");
 
-            voise_close(client);
+            voise_close(&client);
 
             ast_stopstream(chan);
 
@@ -407,7 +408,7 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
             size_t audio_length = -1;
 
             /* TODO: Treat method return (1 = success and -1 = fail) */
-            voise_read_synth(client, samples, &audio_length);
+            voise_read_synth(&client, samples, &audio_length);
 
             int nbytes = f->samples * voise_get_bytes_per_sample(AUDIO_FORMAT);
 
@@ -431,7 +432,7 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
         ast_frfree(f);
     }
 
-    voise_close(client);
+    voise_close(&client);
 
     ast_safe_sleep(chan, 20);
 

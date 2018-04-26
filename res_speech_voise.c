@@ -27,6 +27,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
@@ -149,6 +150,19 @@ static struct ast_config* voise_load_asterisk_config(void)
         struct ast_flags config_flags = { CONFIG_FLAG_WITHCOMMENTS };
         return ast_config_load(VOISE_CFG, config_flags);
     #endif 
+}
+
+void __voise_capture_error_cb(const char* fmt, ...)
+{
+    char msg[1000];
+    va_list va;
+
+    va_start(va, fmt);
+
+    vsnprintf(msg, 1000, fmt, va);
+    ast_log(LOG_ERROR, "libvoise.so -> %s", msg);
+
+    va_end(va);
 }
 
 /*! \brief Helper function. Test config file  */
@@ -606,9 +620,11 @@ static int voise_create(struct ast_speech *speech, int format)
 
     CHECK_NOT_NULL(voise_info, "Voise info is NULL", -1);
 
-    voise_info->client = voise_init(vserverip, 8102, 1);
+    voise_info->client = ast_calloc( 1, sizeof( voise_client_t ) );
 
-    if (voise_info->client == NULL)
+    int ret = voise_init(voise_info->client, vserverip, 8102, 1, __voise_capture_error_cb);
+
+    if (ret < 0)
     {
         ast_log(LOG_ERROR, "Could not connect to Voise server (%s).\n", vserverip);
         ast_config_destroy(vcfg);
@@ -640,6 +656,8 @@ static int voise_destroy(struct ast_speech *speech)
         ast_log(LOG_NOTICE, "Closing connection to Voise server.\n");
 
     voise_close( voise_info->client );
+
+    ast_free(voise_info->client);
 
     ast_free(voise_info);
     voise_info = NULL;
