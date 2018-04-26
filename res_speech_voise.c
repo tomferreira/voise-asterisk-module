@@ -276,13 +276,9 @@ static const char* __voise_get_lang(struct ast_speech *speech)
     struct voise_speech_info *voise_info;
     voise_info = (struct voise_speech_info *)speech->data;
 
-    if (voise_info != NULL)
-        return voise_info->lang;
-    else
-    {
-        ast_log(LOG_ERROR, "Could not get language\n");
-        return NULL;
-    }
+    CHECK_NOT_NULL(voise_info, "Could not get language", NULL);
+
+    return voise_info->lang;
 }
 
 /*! \brief Helper function. Set ASR engine*/
@@ -318,13 +314,9 @@ static const char* __voise_get_asr_engine(struct ast_speech *speech)
     struct voise_speech_info *voise_info;
     voise_info = (struct voise_speech_info *)speech->data;
 
-    if (voise_info != NULL)
-        return voise_info->asr_engine;
-    else
-    {
-        ast_log(LOG_ERROR, "Could not get ASR engine\n");
-        return NULL;
-    }
+    CHECK_NOT_NULL(voise_info, "Could not get ASR engine", NULL);
+
+    return voise_info->asr_engine;
 }
 
 /*! \brief Helper function. Set model*/
@@ -360,13 +352,9 @@ static const char* __voise_get_model(struct ast_speech *speech)
     struct voise_speech_info *voise_info;
     voise_info = (struct voise_speech_info *)speech->data;
 
-    if (voise_info != NULL)
-        return voise_info->model_name;
-    else
-    {
-        ast_log(LOG_ERROR, "Could not get model\n");
-        return NULL;
-    }
+    CHECK_NOT_NULL(voise_info, "Could not get model", NULL);
+
+    return voise_info->model_name;
 }
 
 /*! \brief Helper function. Set maximum initial silence*/
@@ -401,13 +389,9 @@ static int __voise_get_initsilence(struct ast_speech *speech)
     struct voise_speech_info *voise_info;
     voise_info = (struct voise_speech_info *)speech->data;
 
-    if (voise_info != NULL)
-        return voise_info->initsil;
-    else
-    {
-        ast_log(LOG_ERROR, "Could not get initial silence\n");
-        return -1;
-    }
+    CHECK_NOT_NULL(voise_info, "Could not get initial silence", -1);
+
+    return voise_info->initsil;
 }
 
 /*! \brief Helper function. Set maximum final silence*/
@@ -442,13 +426,9 @@ static int __voise_get_maxsilence(struct ast_speech *speech)
     struct voise_speech_info *voise_info;
     voise_info = (struct voise_speech_info *)speech->data;
 
-    if (voise_info != NULL)
-        return voise_info->maxsil;
-    else
-    {
-        ast_log(LOG_ERROR, "Could not get maximum silence\n");
-        return -1;
-    }
+    CHECK_NOT_NULL(voise_info, "Could not get maximum silence", -1);
+
+    return voise_info->maxsil;
 }
 
 /*! \brief Helper function. Set abs timeout*/
@@ -483,13 +463,9 @@ static int __voise_get_abstimeout(struct ast_speech *speech)
     struct voise_speech_info *voise_info;
     voise_info = (struct voise_speech_info *)speech->data;
 
-    if (voise_info != NULL)
-        return voise_info->abs_timeout;
-    else
-    {
-        ast_log(LOG_ERROR, "Could not get abs timeout\n");
-        return -1;
-    }
+    CHECK_NOT_NULL(voise_info, "Could not get abs timeout", -1);
+
+    return voise_info->abs_timeout;
 }
 
 /*! \brief Helper function. Set ASR result*/
@@ -755,7 +731,6 @@ static int voise_write(struct ast_speech *speech, void *data, int len)
     ast_format_set(&f.subclass.format, AST_FORMAT_SLINEAR, 0);
 #endif
     
-
     int totalsil;
     int silence = ast_dsp_silence(voise_info->dsp, &f, &totalsil);
 
