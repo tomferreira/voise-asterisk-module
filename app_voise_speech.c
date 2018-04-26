@@ -312,6 +312,8 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
     ast_stopstream(chan);
 
     voise_response_t response;
+
+    /* TODO: Treat method return (1 = success and -1 = fail) */
     voise_start_synth(client, &response, args.text, VOISE_ENCODING, 8000, args.lang);
 
     if (response.result_code != 201)
@@ -402,15 +404,18 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
         {
             memset(samples, 0, VOISE_BUFFER_SIZE);
 
-            int count = voise_read_synth(client, samples);
+            size_t audio_length = -1;
+
+            /* TODO: Treat method return (1 = success and -1 = fail) */
+            voise_read_synth(client, samples, &audio_length);
 
             int nbytes = f->samples * voise_get_bytes_per_sample(AUDIO_FORMAT);
 
-            if (count < nbytes)
+            if (audio_length < nbytes)
                 done = 1;
 
-            f->datalen = count;
-            f->samples = count / voise_get_bytes_per_sample(AUDIO_FORMAT);
+            f->datalen = (int)audio_length;
+            f->samples = (int)audio_length / voise_get_bytes_per_sample(AUDIO_FORMAT);
 
             /* Tell the frame which are it's new samples */
             #if ASTERISK_VERSION_NUM < AST_601
