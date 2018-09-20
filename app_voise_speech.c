@@ -34,18 +34,11 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1 $")
 #include "asterisk/module.h"
 #include "asterisk/lock.h"
 #include "asterisk/app.h"
+#include "asterisk/format_cache.h"
 
 #include <voise_client.h>
 
 //#define TRACE_ENABLED
-
-#define AST_4   10400
-#define AST_6   10600
-#define AST_601 10601
-#define AST_8   10800
-#define AST_10  100000
-#define AST_11  110000
-#define AST_13  130000
 
 #ifdef TRACE_ENABLED
 #define TRACE_FUNCTION() \
@@ -54,29 +47,14 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 1 $")
     #define TRACE_FUNCTION()
 #endif
 
-#if ASTERISK_VERSION_NUM < AST_8
-    typedef void* DATA_TYPE;
-#else
-    typedef const char* DATA_TYPE;  
-#endif
-
-#if ASTERISK_VERSION_NUM == AST_13
-    #include "asterisk/format_cache.h"
-    #define AUDIO_FORMAT    ast_format_alaw
-#else
-    #define AUDIO_FORMAT    AST_FORMAT_ALAW
-#endif
-
 static const char *VOISE_CFG = "voise.conf";
 static const char *VOISE_DEF_HOST = "127.0.0.1";
 static const char *VOISE_DEF_LANG = "pt-BR";
 static const char *VOISE_DEF_VERBOSE = "0"; /* disabled */
 
-static const int  VOISE_BUFFER_SIZE  = 160; /* Alaw 20ms */
-static const char *VOISE_ENCODING = "ALAW";
-static const int  MAX_WAIT_TIME = 1000; /*ms*/
+static const int MAX_WAIT_TIME = 1000; /*ms*/
 
-/* 
+/*
 * Application info
 */
 /* VoiseSay */
@@ -96,61 +74,37 @@ static struct ast_config* voise_load_asterisk_config(void)
 {
     TRACE_FUNCTION();
 
-    #if ASTERISK_VERSION_NUM < AST_6 
-        return ast_config_load(VOISE_CFG); 
-    #else
-        struct ast_flags config_flags = { CONFIG_FLAG_WITHCOMMENTS };
-        return ast_config_load(VOISE_CFG, config_flags);
-    #endif 
+    struct ast_flags config_flags = { CONFIG_FLAG_WITHCOMMENTS };
+    return ast_config_load(VOISE_CFG, config_flags);
 }
 
-/*! \brief Helper function. Set channel write format*/
-static int voise_set_channel_write_format(struct ast_channel *chan)
+static void __voise_capture_error_cb(const char* fmt, ...)
+{
+    char msg[1000];
+    va_list va;
+
+    va_start(va, fmt);
+
+    vsnprintf(msg, 1000, fmt, va);
+    ast_log(LOG_ERROR, "libvoise.so -> %s", msg);
+
+    va_end(va);
+}
+
+static struct ast_format* ast_channel_get_speechwriteformat(struct ast_channel *chan)
 {
     TRACE_FUNCTION();
 
-    #if (ASTERISK_VERSION_NUM < AST_10) || (ASTERISK_VERSION_NUM == AST_13)
-        return ast_set_write_format(chan, AUDIO_FORMAT);
-    #else
-        return ast_set_write_format_by_id(chan, AUDIO_FORMAT);
-    #endif
+    struct ast_format *raw_format = ast_channel_rawreadformat(chan);
+
+    if (raw_format == ast_format_ulaw || raw_format == ast_format_alaw)
+        return raw_format;
+
+    int sample_rate = ast_format_get_sample_rate(raw_format);
+
+    return ast_format_cache_get_slin_by_rate(sample_rate);
 }
 
-/*! \brief Helper function. Set channel read format*/
-static int voise_set_channel_read_format(struct ast_channel *chan)
-{
-    TRACE_FUNCTION();
-
-    #if (ASTERISK_VERSION_NUM < AST_10) || (ASTERISK_VERSION_NUM == AST_13)
-        return ast_set_read_format(chan, AUDIO_FORMAT);
-    #else
-        return ast_set_read_format_by_id(chan, AUDIO_FORMAT);
-    #endif
-}
-
-static const char* voise_get_chan_name(struct ast_channel *chan)
-{
-    TRACE_FUNCTION();
-
-    #if ASTERISK_VERSION_NUM < AST_11
-        return chan->name;
-    #else
-        return ast_channel_name(chan);
-    #endif
-}
-
-static const char* voise_get_chan_language(struct ast_channel *chan)
-{
-    TRACE_FUNCTION();
-
-    #if ASTERISK_VERSION_NUM < AST_11
-        return chan->language;
-    #else
-        return ast_channel_language(chan);
-    #endif
-}
-
-#if ASTERISK_VERSION_NUM == AST_13
 static int voise_get_bytes_per_sample(struct ast_format *format)
 {
     if (format == ast_format_ulaw || format == ast_format_alaw)
@@ -159,30 +113,15 @@ static int voise_get_bytes_per_sample(struct ast_format *format)
     /* linear */
     return 2;
 }
-#else
-static int voise_get_bytes_per_sample(int formatid)
-{
-    if (formatid == AST_FORMAT_ULAW || formatid == AST_FORMAT_ALAW)
-        return 1;
-
-    /* linear */
-    return 2;
-}
-#endif
 
 /*! \brief Text to speech application. */
-static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
+static int voise_say_exec(struct ast_channel *chan, const char* data)
 {
     TRACE_FUNCTION();
 
-    #if ASTERISK_VERSION_NUM < AST_4
-    struct localuser *u;
-    #else
     struct ast_module_user *u;
-    #endif
-
     char *parse;
-    
+
     int option_verbose = 0;
     int option_beep = 0;
     int option_no_hangup_on_err = 0;
@@ -193,7 +132,7 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
         AST_APP_ARG(options);
     );
 
-    if (ast_strlen_zero(data)) 
+    if (ast_strlen_zero(data))
     {
         ast_log(LOG_ERROR, "%s requires an argument (text[,lang][,options])\n", voise_say_app);
         return -1;
@@ -250,56 +189,28 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
     if ( !(vserverip = ast_variable_retrieve(vcfg, "general", "serverip")) )
         vserverip = VOISE_DEF_HOST;
 
-    #if ASTERISK_VERSION_NUM < AST_4
-    LOCAL_USER_ADD(u);
-    #else
     u = ast_module_user_add(chan);
-    #endif
+
+    struct ast_format *new_writeformat = ast_channel_get_speechwriteformat(chan);
+
+    int max_frame_ms = ast_format_get_default_ms(new_writeformat);
+    // Eg: Alaw: 20 (default_ms) / 10 (get_minimum_ms) * 80 (minimum_bytes) = 160;
+    int max_frame_len = max_frame_ms / ast_format_get_minimum_ms(new_writeformat) * ast_format_get_minimum_bytes(new_writeformat);
+
+    if (option_verbose)
+        ast_log(LOG_DEBUG, "Format name: %s, Max frame len: %d\n", ast_format_get_name(new_writeformat), max_frame_len);
 
     /* Set channel format */
-    if (voise_set_channel_write_format(chan) < 0)
-    {
-        ast_log(LOG_ERROR, "AUDIO_FORMAT (write) failed.\n");
-
-        #if ASTERISK_VERSION_NUM < AST_4
-        LOCAL_USER_REMOVE(u);
-        #else   
-        ast_module_user_remove(u);
-        #endif
-
-        ast_config_destroy(vcfg);
-
-        return -1;
-    }
-
-    if (voise_set_channel_read_format(chan) < 0)
-    {
-        ast_log(LOG_ERROR, "AUDIO_FORMAT (read) failed.\n");
-
-        #if ASTERISK_VERSION_NUM < AST_4
-        LOCAL_USER_REMOVE(u);
-        #else   
-        ast_module_user_remove(u);
-        #endif
-
-        ast_config_destroy(vcfg);
-
-        return -1;
-    }
+    ast_channel_set_writeformat(chan, new_writeformat);
 
     voise_client_t client;
-    int ret = voise_init(&client, vserverip, 8102, 1, NULL);
+    int ret = voise_init(&client, vserverip, 8102, 1, __voise_capture_error_cb);
 
     if (ret < 0)
     {
         ast_log(LOG_ERROR, "Could not connect to Voise server (%s).\n", vserverip);
 
-        #if ASTERISK_VERSION_NUM < AST_4
-        LOCAL_USER_REMOVE(u);
-        #else   
         ast_module_user_remove(u);
-        #endif
-
         ast_config_destroy(vcfg);
 
         return -1;
@@ -313,19 +224,15 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
     ast_stopstream(chan);
 
     voise_response_t response;
+    ret = voise_start_synth(&client, &response,
+        args.text, ast_format_get_name(new_writeformat), ast_format_get_sample_rate(new_writeformat), args.lang, max_frame_ms);
 
-    /* TODO: Treat method return (1 = success and -1 = fail) */
-    voise_start_synth(&client, &response, args.text, VOISE_ENCODING, 8000, args.lang);
-
-    if (response.result_code != 201)
+    // 201 = Accepted
+    if (ret < 0 || response.result_code != 201)
     {
         ast_log(LOG_ERROR, "VoiseSay: %s\n", response.result_message);
 
-        #if ASTERISK_VERSION_NUM < AST_4
-        LOCAL_USER_REMOVE(u);
-        #else   
         ast_module_user_remove(u);
-        #endif
 
         voise_close(&client);
 
@@ -336,14 +243,14 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
 
     ast_config_destroy(vcfg);
 
-    if (option_beep) 
+    if (option_beep)
     {
-        int res = ast_streamfile(chan, "beep", voise_get_chan_language(chan));
+        int res = ast_streamfile(chan, "beep", ast_channel_language(chan));
 
-        if (!res) 
+        if (!res)
             res = ast_waitstream(chan, "");
         else
-            ast_log(LOG_WARNING, "ast_streamfile failed on %s\n", voise_get_chan_name(chan));
+            ast_log(LOG_WARNING, "ast_streamfile failed on %s\n", ast_channel_name(chan));
 
         ast_stopstream(chan);
     }
@@ -351,9 +258,11 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
     ast_safe_sleep(chan, 300);
 
     struct ast_frame *f;
-    unsigned char samples[VOISE_BUFFER_SIZE];
+    unsigned char audio_data[VOISE_MAX_FRAME_LEN];
 
+    int result = 0;
     int done = 0;
+
     while (!done)
     {
         int ms = ast_waitfor(chan, MAX_WAIT_TIME);
@@ -365,17 +274,8 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
         {
             ast_log(LOG_ERROR, "Wait failed.\n");
 
-            voise_close(&client);
-
-            ast_stopstream(chan);
-
-            #if ASTERISK_VERSION_NUM < AST_4
-            LOCAL_USER_REMOVE(u);
-            #else   
-            ast_module_user_remove(u);
-            #endif
-
-            return -1;  
+            result = -1;
+            break;
         }
 
         if (option_verbose)
@@ -388,46 +288,37 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
         {
             ast_log(LOG_DEBUG, "Hangup detected.\n");
 
-            voise_close(&client);
-
-            ast_stopstream(chan);
-
-            #if ASTERISK_VERSION_NUM < AST_4
-            LOCAL_USER_REMOVE(u);
-            #else   
-            ast_module_user_remove(u);
-            #endif
-
-            return -1;
+            result = -1;
+            break;
         }
 
         if (f->frametype == AST_FRAME_VOICE)
         {
-            memset(samples, 0, VOISE_BUFFER_SIZE);
+            memset(audio_data, 0, VOISE_MAX_FRAME_LEN * sizeof(unsigned char));
 
-            size_t audio_length = -1;
+            size_t audio_len = -1;
+            ret = voise_read_synth(&client, audio_data, &audio_len);
 
-            /* TODO: Treat method return (1 = success and -1 = fail) */
-            voise_read_synth(&client, samples, &audio_length);
+            if (ret < 0)
+            {
+                ast_log(LOG_ERROR, "Read synth error: %d\n", ret);
+            }
 
-            int nbytes = f->samples * voise_get_bytes_per_sample(AUDIO_FORMAT);
+            int nbytes = f->samples * voise_get_bytes_per_sample(new_writeformat);
 
-            if (audio_length < nbytes)
+            if (audio_len < nbytes)
                 done = 1;
 
-            f->datalen = (int)audio_length;
-            f->samples = (int)audio_length / voise_get_bytes_per_sample(AUDIO_FORMAT);
+            f->datalen = (int)audio_len;
+            f->samples = (int)audio_len / voise_get_bytes_per_sample(new_writeformat);
+            f->offset = 0;
 
             /* Tell the frame which are it's new samples */
-            #if ASTERISK_VERSION_NUM < AST_601
-            f->data = samples;
-            #else
-            f->data.ptr = samples;
-            #endif
+            f->data.ptr = audio_data;
 
-            if (ast_write(chan, f))
+            if (ast_write(chan, f) < 0)
                 ast_log(LOG_ERROR, "Error writing frame to chan.\n");
-        } 
+        }
 
         ast_frfree(f);
     }
@@ -437,39 +328,18 @@ static int voise_say_exec(struct ast_channel *chan, DATA_TYPE data)
     ast_safe_sleep(chan, 20);
 
     ast_stopstream(chan);
-
-    #if ASTERISK_VERSION_NUM < AST_4
-    LOCAL_USER_REMOVE(u);
-    #else   
     ast_module_user_remove(u);
-    #endif
 
-    return 0;
+    return result;
 }
 
-#if ASTERISK_VERSION_NUM < AST_4
-int load_module(void)
-#else   
 static int load_module(void)
-#endif
 {
     return ast_register_application(voise_say_app, voise_say_exec, "Text to speech application", voise_say_descrip);
 }
 
-#if ASTERISK_VERSION_NUM < AST_4
-int unload_module(void)
-#else
 static int unload_module(void)
-#endif
 {
-    #if ASTERISK_VERSION_NUM < AST_4
-    STANDARD_HANGUP_LOCALUSERS;
-    #elif ASTERISK_VERSION_NUM < AST_6
-    ast_module_user_hangup_all();
-    #else
-    /* */
-    #endif
-
     return ast_unregister_application(voise_say_app);
 }
 

@@ -39,35 +39,12 @@
 #include "asterisk/format.h"
 #include "asterisk/config.h"
 #include "asterisk/speech.h"
+#include "asterisk/ast_version.h"
+#include <asterisk/format_cache.h>
 
 #include <voise_client.h>
 
 //#define TRACE_ENABLED
-
-#define AST_4   10400
-#define AST_6   10600
-#define AST_601 10601
-#define AST_8   10800
-#define AST_10  100000
-#define AST_11  110000
-#define AST_13  130000
-
-/* For Asterisk VideoCaps */
-#if ASTERISK_VERSION_NUM == 999999 
-    #undef ASTERISK_VERSION_NUM
-    #define ASTERISK_VERSION_NUM 10499
-#endif
-
-#if ASTERISK_VERSION_NUM > AST_10
-    #include "asterisk/ast_version.h"
-    
-    #if ASTERISK_VERSION_NUM >= AST_13
-        #include <asterisk/format_cache.h>
-    #endif
-
-#else
-    #include "asterisk/version.h"
-#endif
 
 #ifdef TRACE_ENABLED
 #define TRACE_FUNCTION() \
@@ -144,15 +121,11 @@ static struct ast_speech_engine voise_engine;
 /*! \brief Helper function. Read config file*/
 static struct ast_config* voise_load_asterisk_config(void)
 {
-    #if ASTERISK_VERSION_NUM < AST_6 
-        return ast_config_load(VOISE_CFG); 
-    #else
-        struct ast_flags config_flags = { CONFIG_FLAG_WITHCOMMENTS };
-        return ast_config_load(VOISE_CFG, config_flags);
-    #endif 
+    struct ast_flags config_flags = { CONFIG_FLAG_WITHCOMMENTS };
+    return ast_config_load(VOISE_CFG, config_flags);
 }
 
-void __voise_capture_error_cb(const char* fmt, ...)
+static void __voise_capture_error_cb(const char* fmt, ...)
 {
     char msg[1000];
     va_list va;
@@ -518,13 +491,8 @@ static void __voise_set_result(struct ast_speech *speech, voise_response_t *vois
         if (!type_nbest)
             break;
 
-        #if ASTERISK_VERSION_NUM < AST_6 
-            result->next = ast_calloc(1, sizeof(struct ast_speech_result));
-            result = result->next;
-        #else
-            result->list.next = ast_calloc(1, sizeof(struct ast_speech_result));
-            result = result->list.next;
-        #endif 
+        result->list.next = ast_calloc(1, sizeof(struct ast_speech_result));
+        result = result->list.next;
     }
 
     speech->flags = AST_SPEECH_HAVE_RESULTS;
@@ -537,11 +505,7 @@ static void __voise_set_result(struct ast_speech *speech, voise_response_t *vois
 /* ******************************************** */
 
 /*! \brief Find a speech recognition engine of specified name, if NULL then use the default one */
-#if ASTERISK_VERSION_NUM < AST_6 
-static int voise_create(struct ast_speech *speech)
-#else
 static int voise_create(struct ast_speech *speech, int format)
-#endif
 {
     TRACE_FUNCTION();
 
@@ -556,7 +520,7 @@ static int voise_create(struct ast_speech *speech, int format)
 
     struct ast_config *vcfg = voise_load_asterisk_config();
 
-    if (!vcfg) 
+    if (!vcfg)
     {
         ast_log(LOG_ERROR, "Error opening configuration file %s\n", VOISE_CFG);
         return -1;
@@ -584,12 +548,12 @@ static int voise_create(struct ast_speech *speech, int format)
         vasrengine = VOISE_DEF_ASR_ENGINE;
 
     if (vasrengine != NULL)
-        __voise_set_asr_engine(speech, vasrengine);    
+        __voise_set_asr_engine(speech, vasrengine);
 
     /* Default max initial silence */
     const char *vinitsil;
     if ( !(vinitsil = ast_variable_retrieve(vcfg, "general", "initsil")))
-        vinitsil = VOISE_DEF_INIT_SIL; 
+        vinitsil = VOISE_DEF_INIT_SIL;
 
     if (vinitsil != NULL)
         __voise_set_initsilence(speech, atoi(vinitsil));
@@ -649,7 +613,7 @@ static int voise_destroy(struct ast_speech *speech)
 
     struct voise_speech_info *voise_info;
     voise_info = (struct voise_speech_info *)speech->data;
-    
+
     CHECK_NOT_NULL(voise_info, "Voise info is NULL", -1);
 
     if (verbose)
@@ -661,7 +625,7 @@ static int voise_destroy(struct ast_speech *speech)
 
     ast_free(voise_info);
     voise_info = NULL;
-    
+
     return 0;
 }
 
@@ -733,7 +697,7 @@ static int voise_write(struct ast_speech *speech, void *data, int len)
 
     /* The Voise system doesn't seem be helpful in detecting silence and determing
      * the end of an utterance on its own, so here we use Asterisk's silence detection
-     * DSP to fake sane behaviour. 
+     * DSP to fake sane behaviour.
      * The Asterisk Generic Speech API strips the frame away from the data we are
      * sent, so to use the DSP, here we must re-create a frame.
      */
@@ -743,12 +707,8 @@ static int voise_write(struct ast_speech *speech, void *data, int len)
     f.samples = len / 2;
     f.mallocd = 0;
     f.frametype = AST_FRAME_VOICE;
-#if ASTERISK_VERSION_NUM == AST_13
     f.subclass.format = ast_format_slin;
-#else
-    ast_format_set(&f.subclass.format, AST_FORMAT_SLINEAR, 0);
-#endif
-    
+
     int totalsil;
     int silence = ast_dsp_silence(voise_info->dsp, &f, &totalsil);
 
@@ -785,7 +745,7 @@ static int voise_write(struct ast_speech *speech, void *data, int len)
         {
             ast_log(LOG_ERROR, "Streaming stop error: %d\n", ret);
             ast_speech_change_state(speech, AST_SPEECH_STATE_NOT_READY);
-            
+
             return -1;
         }
 
@@ -805,7 +765,7 @@ static int voise_write(struct ast_speech *speech, void *data, int len)
         {
             ast_log(LOG_ERROR, "Streaming stop error: %d\n", ret);
             ast_speech_change_state(speech, AST_SPEECH_STATE_NOT_READY);
-            
+
             return -1;
         }
 
@@ -888,7 +848,7 @@ static int voise_start(struct ast_speech *speech)
 
     if (verbose)
     {
-        ast_log(LOG_VERBOSE, "Start recognize:\n  Lang: %s\n  Model name: %s\n  ASR engine: %s\n", 
+        ast_log(LOG_VERBOSE, "Start recognize:\n  Lang: %s\n  Model name: %s\n  ASR engine: %s\n",
             lang, model_name, asr_engine);
     }
 
@@ -1019,8 +979,6 @@ static int load_module(void)
 
     if (__init_voise_res_speech() == 1)
     {
-
-#if ASTERISK_VERSION_NUM >= AST_13
         voise_engine.formats = ast_format_cap_alloc(AST_FORMAT_CAP_FLAG_DEFAULT);
 
         if (!voise_engine.formats)
@@ -1030,30 +988,20 @@ static int load_module(void)
         }
 
         ast_format_cap_append(voise_engine.formats, ast_format_slin, 0);
-#elif ASTERISK_VERSION_NUM >= AST_10 && ASTERISK_VERSION_NUM < AST_13 /* 11-12 */
-        struct ast_format format;
-        ast_format_set(&format, AST_FORMAT_SLINEAR, 0);
-
-        if (!(voise_engine.formats = ast_format_cap_alloc(0)))
-        {
-            ast_log(LOG_ERROR, "Failed to alloc media format capabilities\n");
-            return AST_MODULE_LOAD_FAILURE;
-        }
-        ast_format_cap_add(voise_engine.formats, &format);
-#else /* <= 1.8 */
-        voise_engine.formats = AST_FORMAT_SLINEAR;
-#endif
 
         if (ast_speech_register(&voise_engine))
         {
-            ast_log(LOG_ERROR, "Failed to register Voise resource module\n");    
-            return -1;
+            ast_log(LOG_ERROR, "Failed to register Voise resource module\n");
+            return AST_MODULE_LOAD_FAILURE;
         }
 
-        return 0;
+        return AST_MODULE_LOAD_SUCCESS;
     }
-    else 
-        return 0;/*do not stop asterisk startup*/
+    else
+    {
+        /* Do not stop Asterisk startup */
+        return AST_MODULE_LOAD_SUCCESS;
+    }
 }
 
 static int unload_module(void)
