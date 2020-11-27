@@ -8,70 +8,88 @@ Módulo baseado na API Generic Speech Recognition do Asterisk para integração 
 
 * Habilitação dos seguintes módulos do Asterisk:
 
-    app_record
-    app_speech_utils
-    res_speech
+    * app_record
+    * app_speech_utils
+    * res_speech
 
 ## Instalação
 
-1. Copie o arquivo 'res_speech_voise.c' para o subdiretório 'res' (ex: /usr/src/asterisk-12.8.2/res) e o arquivo 'app_voise_speech.c' para o subdiretório 'apps' do código-fonte do Asterisk.
+1. Copie o arquivo 'res_speech_voise.c' para o subdiretório 'res' (ex: /usr/src/asterisk-13.32.0/res) e o arquivo 'app_voise_speech.c' para o subdiretório 'apps' do código-fonte do Asterisk.
 
 2. Edite o arquivo res/Makefile e acrescente a seguinte instrução antes do rótulo 'all:', de acordo com a versão do Asterisk:
 
-2a. Asterisk 1.4, 1.6 o 1.8: 
+    * Asterisk 1.4, 1.6 o 1.8: 
 
+    ```
     MENUSELECT_DEPENDS_res_speech_voise+=VOISE
     VOISE_LIB=-lvoise
+    ```
     
-2b. Asterisk 11:
+    * Asterisk 11:
 
+    ```
     _ASTCFLAGS+=-DASTERISK_VERSION_NUM=110000
     MENUSELECT_DEPENDS_res_speech_voise+=VOISE
     VOISE_LIB=-lvoise
+    ```
 
-2c. Asterisk 12:
+    * Asterisk 12:
 
+    ```
     _ASTCFLAGS+=-DASTERISK_VERSION_NUM=120000
     MENUSELECT_DEPENDS_res_speech_voise+=VOISE
     VOISE_LIB=-lvoise
+    ```
 
-2d. Asterisk 13:
+    * Asterisk 13:
 
+    ```
     _ASTCFLAGS+=-DASTERISK_VERSION_NUM=130000
     MENUSELECT_DEPENDS_res_speech_voise+=VOISE
     VOISE_LIB=-lvoise
+    ```
 
 3. Edite o arquivo apps/Makefile e acrescente a seguinte instrução:
 
-3a. Asterisk 1.2
+    * Asterisk 1.2
 
+    ```
     APPS+=app_voise_speech.so
     
     app_voise_speech.so : app_voise_speech.o
         $(CC) $(SOLINK) -o $@ ${CYGSOLINK} $< ${CYGSOLIB} -lvoise
+    ```
 
-3b. Asterisk 1.4, 1.6 or 1.8 (antes do rótulo 'all:'):
-    
+    * Asterisk 1.4, 1.6 or 1.8 (antes do rótulo 'all:'):
+
+    ``` 
     MENUSELECT_DEPENDS_app_voise_speech+=VOISE
     VOISE_LIB=-lvoise
+    ```
 
-3c. Asterisk 11 (antes do rótulo 'all:'):
+    * Asterisk 11 (antes do rótulo 'all:'):
 
+    ```
     _ASTCFLAGS+=-DASTERISK_VERSION_NUM=110000
     MENUSELECT_DEPENDS_app_voise_speech+=VOISE
     VOISE_LIB=-lvoise
+    ```
 
-3d. Asterisk 12 (antes do rótulo 'all:'):
+    * Asterisk 12 (antes do rótulo 'all:'):
 
+    ```
     _ASTCFLAGS+=-DASTERISK_VERSION_NUM=120000
     MENUSELECT_DEPENDS_app_voise_speech+=VOISE
     VOISE_LIB=-lvoise
+    ```
 
-3e. Asterisk 13 (antes do rótulo 'all:'):
+    * Asterisk 13 (antes do rótulo 'all:'):
 
+    ```
     _ASTCFLAGS+=-DASTERISK_VERSION_NUM=130000
     MENUSELECT_DEPENDS_app_voise_speech+=VOISE
     VOISE_LIB=-lvoise
+    ```
 
 4. Execute o seguinte comando a partir do diretório raiz do código-fonte:
     
