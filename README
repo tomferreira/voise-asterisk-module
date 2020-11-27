@@ -1,90 +1,86 @@
------------------------------------------------------
--= Installing Voise res_speech module on Asterisk =-
------------------------------------------------------
+# Módulo do Voise para Asterisk
 
-Voise connector for Asterisk Generic Speech Recognition API.
-(http://www.asterisk.org/doxygen/1.4/AstSpeech.html)
+Módulo baseado na API Generic Speech Recognition do Asterisk para integração com a biblioteca Voise C.
 
-In order to install 'res_speech_voise' module, you need to perform the following steps:
+## Requisitos
 
-1 - Copy 'res_speech_voise.c' file to 'res' folder (ex: /usr/src/asterisk-12.8.2/res) of your asterisk sources.
-    and copy 'app_voise_speech.c' file to 'apps' folder of your asterisk sources.
+* Instalação da biblioteca Voise C
 
-2 - Edit the 'Makefile' ('res' folder) in order to add (before 'all:' label):
+* Habilitação dos seguintes módulos do Asterisk:
 
-    2a - for Asterisk 1.4, 1.6 o 1.8: 
+    app_record
+    app_speech_utils
+    res_speech
+
+## Instalação
+
+1. Copie o arquivo 'res_speech_voise.c' para o subdiretório 'res' (ex: /usr/src/asterisk-12.8.2/res) e o arquivo 'app_voise_speech.c' para o subdiretório 'apps' do código-fonte do Asterisk.
+
+2. Edite o arquivo res/Makefile e acrescente a seguinte instrução antes do rótulo 'all:', de acordo com a versão do Asterisk:
+
+2a. Asterisk 1.4, 1.6 o 1.8: 
 
     MENUSELECT_DEPENDS_res_speech_voise+=VOISE
     VOISE_LIB=-lvoise
     
-    2b - for Asterisk 11:
+2b. Asterisk 11:
 
     _ASTCFLAGS+=-DASTERISK_VERSION_NUM=110000
     MENUSELECT_DEPENDS_res_speech_voise+=VOISE
     VOISE_LIB=-lvoise
 
-    2c - for Asterisk 12:
+2c. Asterisk 12:
 
     _ASTCFLAGS+=-DASTERISK_VERSION_NUM=120000
     MENUSELECT_DEPENDS_res_speech_voise+=VOISE
     VOISE_LIB=-lvoise
 
-    2d - for Asterisk 13:
+2d. Asterisk 13:
 
     _ASTCFLAGS+=-DASTERISK_VERSION_NUM=130000
     MENUSELECT_DEPENDS_res_speech_voise+=VOISE
     VOISE_LIB=-lvoise
 
-3 - Edit the 'Makefile' ('apps' folder) in order to add:
+3. Edite o arquivo apps/Makefile e acrescente a seguinte instrução:
 
-    3a - If you are on Asterisk 1.2
+3a. Asterisk 1.2
 
     APPS+=app_voise_speech.so
-    
-    and
     
     app_voise_speech.so : app_voise_speech.o
         $(CC) $(SOLINK) -o $@ ${CYGSOLINK} $< ${CYGSOLIB} -lvoise
 
-    --------------
-
-    3b - If you are on Asterisk 1.4, 1.6 or 1.8, add before 'all:' label:
+3b. Asterisk 1.4, 1.6 or 1.8 (antes do rótulo 'all:'):
     
     MENUSELECT_DEPENDS_app_voise_speech+=VOISE
     VOISE_LIB=-lvoise
 
-    --------------
-
-    3c - If you are on Asterisk 11, add before 'all:' label:
+3c. Asterisk 11 (antes do rótulo 'all:'):
 
     _ASTCFLAGS+=-DASTERISK_VERSION_NUM=110000
     MENUSELECT_DEPENDS_app_voise_speech+=VOISE
     VOISE_LIB=-lvoise
 
-    ---------------
-
-    3d - If you are on Asterisk 12, add before 'all:' label:
+3d. Asterisk 12 (antes do rótulo 'all:'):
 
     _ASTCFLAGS+=-DASTERISK_VERSION_NUM=120000
     MENUSELECT_DEPENDS_app_voise_speech+=VOISE
     VOISE_LIB=-lvoise
 
-    ---------------
-
-    3e - If you are on Asterisk 13, add before 'all:' label:
+3e. Asterisk 13 (antes do rótulo 'all:'):
 
     _ASTCFLAGS+=-DASTERISK_VERSION_NUM=130000
     MENUSELECT_DEPENDS_app_voise_speech+=VOISE
     VOISE_LIB=-lvoise
 
-4 - Run 'make install' (top of your asterisk sources)
+4. Execute o seguinte comando a partir do diretório raiz do código-fonte:
+    
+    make install
 
-5 - Check that you have the following lines in /etc/asterisk/modules.conf:
+5. Acrescente as seguintes linhas no arquivo /etc/asterisk/modules.conf:
 
-; Uncomment the following if you wish to use the Speech Recognition API
-preload => res_speech.so
-load => res_speech_voise.so
+    ; Uncomment the following if you wish to use the Speech Recognition API
+    preload => res_speech.so
+    load => res_speech_voise.so
 
-6 - Copy 'voise.conf' (configuration file) to:
-
-/etc/asterisk
+6. Copie o arquivo de configuração 'voise.conf' para o diretório /etc/asterisk
