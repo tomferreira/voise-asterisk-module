@@ -93,7 +93,9 @@ Módulo baseado na API Generic Speech Recognition do Asterisk para integração 
 
 4. Execute o seguinte comando a partir do diretório raiz do código-fonte:
     
+    ```
     make install
+    ```
 
 5. Acrescente as seguintes linhas no arquivo /etc/asterisk/modules.conf:
 
