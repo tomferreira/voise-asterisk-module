@@ -4,7 +4,7 @@ Módulo baseado na API Generic Speech Recognition do Asterisk para integração 
 
 ## Requisitos
 
-* Instalação da biblioteca Voise C
+* Instalação da biblioteca Voise C/C++ (https://bvnet.lbv.org.br/repo/projects/SWVOS/repos/client-c)
 
 * Habilitação dos seguintes módulos do Asterisk:
 
@@ -99,8 +99,10 @@ Módulo baseado na API Generic Speech Recognition do Asterisk para integração 
 
 5. Acrescente as seguintes linhas no arquivo /etc/asterisk/modules.conf:
 
+    ```
     ; Uncomment the following if you wish to use the Speech Recognition API
     preload => res_speech.so
     load => res_speech_voise.so
-
+    ```
+    
 6. Copie o arquivo de configuração 'voise.conf' para o diretório /etc/asterisk
